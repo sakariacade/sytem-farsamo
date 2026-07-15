@@ -51,34 +51,28 @@ function writeStoredData(data, callback) {
 }
 
 function sendJson(res, statusCode, payload) {
-  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(payload));
-}
-
-function serveFile(res, filePath) {
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      const fallback = path.join(root, 'farsamo.html');
-      fs.readFile(fallback, (fallbackErr, fallbackData) => {
-        if (fallbackErr) {
-          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-          res.end('Not found');
-          return;
-        }
-        res.writeHead(200, { 'Content-Type': mimeTypes[path.extname(fallback)] || 'application/octet-stream' });
-        res.end(fallbackData);
-      });
-      return;
-    }
-
-    const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
-    res.end(data);
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type'
   });
+  res.end(JSON.stringify(payload));
 }
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
+
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    });
+    res.end();
+    return;
+  }
 
   if (req.method === 'GET' && url.pathname === '/api/data') {
     readStoredData((err, data) => {
@@ -93,9 +87,7 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'POST' && url.pathname === '/api/data') {
     let body = '';
-    req.on('data', (chunk) => {
-      body += chunk.toString();
-    });
+    req.on('data', (chunk) => { body += chunk.toString(); });
     req.on('end', () => {
       try {
         const parsed = JSON.parse(body);
@@ -103,7 +95,6 @@ const server = http.createServer((req, res) => {
           sendJson(res, 400, { error: 'Invalid payload' });
           return;
         }
-
         writeStoredData(parsed, (err) => {
           if (err) {
             sendJson(res, 500, { error: 'Unable to save data' });
@@ -118,20 +109,39 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  let requestPath = url.pathname === '/' ? '/farsamo.html' : url.pathname;
+  // Serve static files from dist/ for production use
+  let requestPath = url.pathname === '/' ? '/index.html' : url.pathname;
   const decodedPath = decodeURIComponent(requestPath);
   const safePath = path.normalize(decodedPath).replace(/^([/\\])+/, '');
-  const filePath = path.join(root, safePath);
+  const filePath = path.join(root, 'dist', safePath);
 
-  if (!filePath.startsWith(root)) {
+  if (!filePath.startsWith(path.join(root, 'dist'))) {
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Forbidden');
     return;
   }
 
-  serveFile(res, filePath);
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      // Fallback to index.html for SPA routing
+      fs.readFile(path.join(root, 'dist', 'index.html'), (fallbackErr, fallbackData) => {
+        if (fallbackErr) {
+          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('Not found');
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(fallbackData);
+      });
+      return;
+    }
+    const ext = path.extname(filePath).toLowerCase();
+    res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+    res.end(data);
+  });
 });
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Server running at http://127.0.0.1:${port}/`);
+  console.log(`✅ Server running at http://127.0.0.1:${port}/`);
+  console.log(`📁 Data file: ${dataFile}`);
 });
