@@ -10,6 +10,7 @@ import TicketForm from './TicketForm'
 import TicketsTable from './TicketsTable'
 import ArchiveTable from './ArchiveTable'
 import { addTicket, updateTicketStatus, archiveTicket, deleteTicket, syncAllData } from '../actions/tickets'
+import { exportPDF, exportExcel, importExcel } from '../lib/exportUtils'
 
 export default function Dashboard({ initialTickets, initialArchive }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -42,36 +43,43 @@ export default function Dashboard({ initialTickets, initialArchive }) {
     return <LoginPage onLogin={handleLogin} />
   }
 
-  const exportBackup = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify({ tickets, archive }))
-    const link = document.createElement('a')
-    link.href = dataStr
-    link.download = 'ILWAAD_Data_Backup.json'
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
+  const handleExportPDF = async () => {
+    try {
+      await exportPDF(tickets, archive)
+    } catch (err) {
+      console.error(err)
+      alert('❌ PDF-ka soo dejista waa fashilantay. Isku day mar kale.')
+    }
   }
 
-  const importBackup = async (e) => {
+  const handleExportExcel = async () => {
+    try {
+      await exportExcel(tickets, archive)
+    } catch (err) {
+      console.error(err)
+      alert('❌ Excel-ka soo dejista waa fashilantay. Isku day mar kale.')
+    }
+  }
+
+  const handleImportExcel = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      try {
-        const parsed = JSON.parse(event.target.result)
-        if (parsed.tickets && parsed.archive) {
-          setTickets(parsed.tickets)
-          setArchive(parsed.archive)
-          await syncAllData(parsed.tickets, parsed.archive)
-          alert('✅ Xogtii si guul leh ayaa loo soo celiyey!')
-        } else {
-          alert('❌ Faylkan sax maahan!')
-        }
-      } catch {
-        alert('❌ Khalad ayaa dhacay markii faylka la akhriyay.')
+    try {
+      const { tickets: importedTickets, archive: importedArchive } = await importExcel(file)
+      if (!importedTickets.length && !importedArchive.length) {
+        alert('❌ Faylkan xog kuma jirto ama qaabkiisu sax ma aha.')
+        return
       }
+      setTickets(importedTickets)
+      setArchive(importedArchive)
+      await syncAllData(importedTickets, importedArchive)
+      setFeedback(`✅ ${importedTickets.length} tickets iyo ${importedArchive.length} archive waa la soo celiyey!`)
+    } catch (err) {
+      console.error(err)
+      alert('❌ Khalad ayaa dhacay markii Excel-ka la akhriyay. Hubi faylka saxda ah.')
     }
-    reader.readAsText(file, 'UTF-8')
+    // Reset input so same file can be re-imported
+    e.target.value = ''
   }
 
   const handleAddTicket = async (newTicket) => {
@@ -119,7 +127,7 @@ export default function Dashboard({ initialTickets, initialArchive }) {
     <>
       <Header searchTerm={searchTerm} onSearch={setSearchTerm} onLogout={handleLogout} />
       <main className="container mx-auto px-4 py-6 space-y-6">
-        <BackupBar onExport={exportBackup} onImport={importBackup} />
+        <BackupBar onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} onImport={handleImportExcel} />
         {feedback && <FeedbackBanner message={feedback} />}
         <StatsBar
           ticketCount={tickets.length}
