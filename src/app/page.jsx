@@ -1,6 +1,8 @@
 import { getTickets } from '../actions/tickets'
 import Dashboard from '../components/Dashboard'
 
+export const dynamic = 'force-dynamic'
+
 export default async function Page() {
   const { tickets, archive } = await getTickets()
   
