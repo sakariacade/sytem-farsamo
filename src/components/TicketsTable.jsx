@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { statusOptions } from '../data/initialData'
 
 function renderNoocIcon(nooc) {
@@ -6,7 +7,34 @@ function renderNoocIcon(nooc) {
   return '📦 All-in-One'
 }
 
-export default function TicketsTable({ tickets, onStatusChange, onArchive }) {
+export default function TicketsTable({ tickets, onStatusChange, onArchive, onDownloadSelected }) {
+  const [selected, setSelected] = useState(new Set())
+
+  const toggleOne = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    if (selected.size === tickets.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(tickets.map(t => t.id)))
+    }
+  }
+
+  const handleDownload = () => {
+    const items = tickets.filter(t => selected.has(t.id))
+    onDownloadSelected(items, 'Qalabka Jira')
+    setSelected(new Set())
+  }
+
+  const allChecked = tickets.length > 0 && selected.size === tickets.length
+  const someChecked = selected.size > 0 && selected.size < tickets.length
+
   return (
     <div className="bg-white/95 rounded-3xl p-6 shadow-[0_16px_40px_rgba(15,23,42,0.08)] border border-gray-100">
       <div className="mb-4 flex items-center justify-between rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3">
@@ -14,8 +42,18 @@ export default function TicketsTable({ tickets, onStatusChange, onArchive }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-blue-600">Qalabka</p>
           <h2 className="text-lg font-black text-slate-800">Gacanta ku jira</h2>
         </div>
-        <div className="rounded-full bg-white px-3 py-1 text-sm font-bold text-blue-700 shadow-sm">
-          {tickets.length} total
+        <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition-all hover:-translate-y-0.5"
+            >
+              📄 PDF ({selected.size})
+            </button>
+          )}
+          <div className="rounded-full bg-white px-3 py-1 text-sm font-bold text-blue-700 shadow-sm">
+            {tickets.length} total
+          </div>
         </div>
       </div>
 
@@ -23,6 +61,16 @@ export default function TicketsTable({ tickets, onStatusChange, onArchive }) {
         <table className="min-w-full text-sm text-left">
           <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
             <tr>
+              <th className="p-3 w-8">
+                <input
+                  type="checkbox"
+                  checked={allChecked}
+                  ref={el => { if (el) el.indeterminate = someChecked }}
+                  onChange={toggleAll}
+                  className="rounded cursor-pointer accent-blue-600"
+                  title="Dhammaan xuli"
+                />
+              </th>
               <th className="p-3">ID / Taariikh</th>
               <th className="p-3">Macmiilka</th>
               <th className="p-3">Nooca &amp; Model</th>
@@ -34,13 +82,24 @@ export default function TicketsTable({ tickets, onStatusChange, onArchive }) {
           <tbody className="divide-y divide-gray-100">
             {tickets.length === 0 ? (
               <tr>
-                <td colSpan="6" className="p-4 text-center text-gray-500">
+                <td colSpan="7" className="p-4 text-center text-gray-500">
                   Ma jiro natiijooyin la soo bandhigay.
                 </td>
               </tr>
             ) : (
               tickets.map((ticket) => (
-                <tr key={ticket.id} className="hover:bg-gray-50">
+                <tr
+                  key={ticket.id}
+                  className={`hover:bg-gray-50 transition-colors ${selected.has(ticket.id) ? 'bg-blue-50/60' : ''}`}
+                >
+                  <td className="p-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(ticket.id)}
+                      onChange={() => toggleOne(ticket.id)}
+                      className="rounded cursor-pointer accent-blue-600"
+                    />
+                  </td>
                   <td className="p-3">
                     <span className="font-bold text-blue-600 block">{ticket.id}</span>
                     <span className="text-[11px] text-gray-400">{ticket.taariikh}</span>

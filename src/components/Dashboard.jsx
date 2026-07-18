@@ -10,7 +10,7 @@ import TicketForm from './TicketForm'
 import TicketsTable from './TicketsTable'
 import ArchiveTable from './ArchiveTable'
 import { addTicket, updateTicketStatus, archiveTicket, deleteTicket, syncAllData } from '../actions/tickets'
-import { exportPDF, exportExcel, importExcel } from '../lib/exportUtils'
+import { exportPDF, exportExcel, importExcel, exportSelectedPDF } from '../lib/exportUtils'
 
 export default function Dashboard({ initialTickets, initialArchive }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -82,6 +82,15 @@ export default function Dashboard({ initialTickets, initialArchive }) {
     e.target.value = ''
   }
 
+  const handleDownloadSelected = async (items, label) => {
+    try {
+      await exportSelectedPDF(items, label)
+    } catch (err) {
+      console.error(err)
+      alert('❌ PDF-ka soo dejista waa fashilantay.')
+    }
+  }
+
   const handleAddTicket = async (newTicket) => {
     setTickets((prev) => [newTicket, ...prev])
     setFeedback(`✅ Qalab cusub waa la kaydiyey: ${newTicket.id}`)
@@ -143,10 +152,12 @@ export default function Dashboard({ initialTickets, initialArchive }) {
               tickets={filteredTickets}
               onStatusChange={handleStatusChange}
               onArchive={handleArchive}
+              onDownloadSelected={handleDownloadSelected}
             />
             <ArchiveTable
               archive={filteredArchive}
               onDelete={handlePermanentDelete}
+              onDownloadSelected={handleDownloadSelected}
             />
           </div>
         </section>

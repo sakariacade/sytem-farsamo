@@ -1,4 +1,134 @@
-// ─── exportPDF ────────────────────────────────────────────────────────────────
+// ─── exportSelectedPDF ────────────────────────────────────────────────────────
+// Generates a PDF for only the selected items.
+// • 1 item  → full receipt / job-card layout
+// • 2+ items → compact landscape table (same branding as the full report)
+export async function exportSelectedPDF(items, sectionLabel = 'Xulashada') {
+  if (!items || items.length === 0) return
+
+  const { jsPDF } = await import('jspdf')
+  const { default: autoTable } = await import('jspdf-autotable')
+
+  const today = new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'long', day: 'numeric' })
+  const brand  = [30, 86, 160]
+  const accent = [245, 158, 11]
+  const dark   = [15, 23, 42]
+
+  // ── Single-item: receipt / job-card ─────────────────────────────────────────
+  if (items.length === 1) {
+    const t = items[0]
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' })
+    const W = doc.internal.pageSize.getWidth()
+
+    // Header band
+    doc.setFillColor(...brand)
+    doc.rect(0, 0, W, 30, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.setTextColor(255, 255, 255)
+    doc.text('ILWAAD SMART SERVICES', W / 2, 11, { align: 'center' })
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Laptop & Printer Repair Center', W / 2, 18, { align: 'center' })
+    doc.text(today, W / 2, 24, { align: 'center' })
+
+    // Ticket ID badge
+    doc.setFillColor(...accent)
+    doc.roundedRect(10, 34, W - 20, 12, 3, 3, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.setTextColor(255, 255, 255)
+    doc.text(`${t.id}`, W / 2, 42, { align: 'center' })
+
+    // Fields
+    const fields = [
+      ['Macmiilka', t.macmiil],
+      ['Telefoon', t.tel],
+      ['Nooca Qalabka', `${t.nooc} – ${t.model}`],
+      ["Cilladda / 'Arrinta", t.cilaad],
+      ['Taariikh', t.taariikh],
+      ['Xaaladda', t.xaalad],
+    ]
+
+    let y = 52
+    fields.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7.5)
+      doc.setTextColor(100, 116, 139)
+      doc.text(label.toUpperCase(), 12, y)
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.setTextColor(...dark)
+      doc.text(String(value || '—'), 12, y + 5)
+
+      doc.setDrawColor(226, 232, 240)
+      doc.line(12, y + 8, W - 12, y + 8)
+      y += 14
+    })
+
+    // Price highlight
+    doc.setFillColor(...brand)
+    doc.roundedRect(10, y + 2, W - 20, 14, 3, 3, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    doc.setTextColor(255, 255, 255)
+    doc.text(`Qiimaha: $${t.qiimo}`, W / 2, y + 11, { align: 'center' })
+
+    // Footer
+    doc.setFontSize(7)
+    doc.setTextColor(150, 150, 150)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Mahadsanid! – ILWAAD SMART SERVICES', W / 2, doc.internal.pageSize.getHeight() - 6, { align: 'center' })
+
+    doc.save(`ILWAAD_${t.id}.pdf`)
+    return
+  }
+
+  // ── Multiple items: compact landscape table ──────────────────────────────────
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.getWidth()
+
+  doc.setFillColor(...brand)
+  doc.rect(0, 0, W, 30, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(18)
+  doc.setTextColor(255, 255, 255)
+  doc.text('ILWAAD SMART SERVICES', W / 2, 12, { align: 'center' })
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`${sectionLabel} – ${items.length} xulasho  •  ${today}`, W / 2, 22, { align: 'center' })
+
+  const cols = ['#', 'ID', 'Macmiilka', 'Tel', 'Nooca', 'Model', "Cilladda", 'Qiimaha ($)', 'Taariikh', 'Xaaladda']
+  const rows = items.map((t, i) => [i + 1, t.id, t.macmiil, t.tel, t.nooc, t.model, t.cilaad, t.qiimo, t.taariikh, t.xaalad])
+
+  autoTable(doc, {
+    startY: 36,
+    head: [cols],
+    body: rows,
+    theme: 'grid',
+    headStyles: { fillColor: brand, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8, halign: 'center' },
+    bodyStyles: { fontSize: 7.5, textColor: dark },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 22 },
+      7: { halign: 'right' },
+      9: { cellWidth: 26 },
+    },
+    margin: { left: 10, right: 10 },
+    didDrawPage: (data) => {
+      const pc = doc.internal.getNumberOfPages()
+      doc.setFontSize(7)
+      doc.setTextColor(150, 150, 150)
+      doc.text(`Bogga ${data.pageNumber} / ${pc}  •  ILWAAD SMART SERVICES  •  ${today}`, W / 2, doc.internal.pageSize.getHeight() - 5, { align: 'center' })
+    },
+  })
+
+  const suffix = items.length === 1 ? items[0].id : `${items.length}-items`
+  doc.save(`ILWAAD_Selected_${suffix}_${new Date().toISOString().slice(0,10)}.pdf`)
+}
+
+
 export async function exportPDF(tickets, archive) {
   const { jsPDF } = await import('jspdf')
   const { default: autoTable } = await import('jspdf-autotable')
