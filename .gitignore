@@ -8,7 +8,7 @@ dist/
 data.json
 
 # Environment files
-# .env is deliberately committed to fix Vercel deployment missing DATABASE_URL
+.env 
 .env.local
 .env.*.local
 
